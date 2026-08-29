@@ -35,6 +35,14 @@
    which Joe sets in the site-wide footer embed (copied from the previous
    script by Joe - credentials never travel through the production pack).
 
+   V1.5 (2026-08-29): dashboard omits metric groups this home has no readings
+   in. The g/kg group added in V1.3 was rendering an empty "Moisture in the
+   air" card on DEMO-001, because those 8 readings belong to H-0002, not to
+   the demonstration home. Correcting the V1.3 note: DEMO-001's 66 readings
+   were always fully accounted for - 12 comparative, 30 degrees C, 16 percent
+   RH, 8 ppm - and nothing was being dropped from it. Records still reports
+   an empty group honestly; the dashboard summary does not pad.
+
    V1.4 (2026-08-29): reports screen now renders only rows flagged
    `client_visible`. Row Level Security already withholds them from a client,
    but a staff member demonstrating the portal is granted every row, so an
@@ -45,9 +53,9 @@
    differently from the build seed - rooms.room_name_current, upgrade_scenarios
    .title, no buildings.building_name at all - and access_status casing is
    inconsistent in the data. Every read now uses the real column with a
-   fallback, and comparisons are lowercased. Added the g/kg group: the live
-   record holds 8 absolute-humidity readings that no group matched, so they
-   were being dropped from the count.
+   fallback, and comparisons are lowercased. Added a g/kg group so
+   absolute-humidity readings have somewhere to land. See V1.5 above for the
+   correction to what that group was originally claimed to fix.
 
    V1.2 (2026-08-29): SELF-BUILDING SHELL. If a page does not already carry
    [data-hs-screen] markup, the core now builds the whole screen itself from
@@ -313,7 +321,11 @@
     renderHero(d);
     const grid = $('#hsMetricGrid'); if (grid) {
       grid.innerHTML = '';
-      GROUPS.filter(g => !g.recordsOnly).forEach(g => {
+      /* V1.5: a summary card for a group this home has no readings in says
+         nothing and pads the walkthrough. Empty groups are omitted here and
+         still reported honestly on the Records screen, where completeness is
+         the point. */
+      GROUPS.filter(g => !g.recordsOnly).filter(g => d.meas.some(g.match)).forEach(g => {
         const rows = d.meas.filter(g.match);
         const card = el('article', 'hs-card hs-metric');
         if (!rows.length) {
