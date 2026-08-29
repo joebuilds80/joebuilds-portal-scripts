@@ -35,6 +35,17 @@
    which Joe sets in the site-wide footer embed (copied from the previous
    script by Joe - credentials never travel through the production pack).
 
+   V1.6 (2026-08-29): two findings from the acceptance controller run.
+   F-07-A: the building was picked as `bs[0]` with no ordering. Harmless for a
+   client, who sees one row, but a staff member sees several and a walkthrough
+   could have opened on a real property. Now ordered by building_code with the
+   DEMO- record preferred when more than one is visible.
+   F-07-D: the dashboard said "7 mapped locations" while the Home Map said
+   "33 mapped locations" for the same record - both true, different scopes,
+   but a prospect sees both within seconds. The dashboard figure now reads
+   "N locations recorded for this measurement", which is what it counts.
+   Not a claim change - a scope that was missing from the sentence.
+
    V1.5 (2026-08-29): dashboard omits metric groups this home has no readings
    in. The g/kg group added in V1.3 was rendering an empty "Moisture in the
    air" card on DEMO-001, because those 8 readings belong to H-0002, not to
@@ -243,10 +254,17 @@
 
   /* ---------- 2. Data ---------- */
   async function loadAll() {
-    const { data: bs, error: bErr } = await sb.from('buildings').select('*');
+    const { data: bs, error: bErr } = await sb.from('buildings').select('*').order('building_code');
     if (bErr) throw bErr;
     if (!bs || !bs.length) return { none: true };
-    const building = bs[0];
+    /* V1.6 (F-07-A): never take whatever row arrives first. A client sees one
+       building, so this is a no-op for them. A staff member sees several, and
+       an unordered pick could silently open a walkthrough on a real property
+       instead of the demonstration. Ordered by code, and the DEMO- record wins
+       when more than one is visible. */
+    const demo = bs.filter(b => String(b.building_code || '').startsWith('DEMO-'));
+    const building = demo.length ? demo[0] : bs[0];
+    if (bs.length > 1) console.info('[HS] ' + bs.length + ' buildings visible to this member; showing ' + building.building_code);
     const bid = building.id;
     const [rooms, points, meas, scen, events, reports] = await Promise.all([
       sb.from('rooms').select('*').eq('building_id', bid).order('room_code'),
@@ -334,8 +352,8 @@
         } else {
           const s = groupStats(rows);
           const desc = g.key === 'HUMIDITY' && s.allReduced
-            ? `${s.locations} mapped locations, ${s.visits} visits. Every location recorded lower than at the first visit.`
-            : `${s.locations} mapped locations, ${s.visits} visits.` +
+            ? `${s.locations} locations recorded for this measurement, ${s.visits} visits. Every location recorded lower than at the first visit.`
+            : `${s.locations} locations recorded for this measurement, ${s.visits} visits.` +
               (s.visits > 1 ? ` First visit ${s.firstDate}, latest ${s.lastDate}.` : '') +
               (g.note ? ` ${g.note}` : '');
           card.innerHTML = `<h3>${g.title}</h3><p class="hs-metric-value">${s.range}</p><p class="hs-metric-desc">${desc}</p>`;
