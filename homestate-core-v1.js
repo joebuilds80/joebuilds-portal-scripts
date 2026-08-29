@@ -35,6 +35,14 @@
    which Joe sets in the site-wide footer embed (copied from the previous
    script by Joe - credentials never travel through the production pack).
 
+   V1.2 (2026-08-29): SELF-BUILDING SHELL. If a page does not already carry
+   [data-hs-screen] markup, the core now builds the whole screen itself from
+   location.pathname. This removes the five Webflow Designer embeds entirely -
+   Joe touches the head and footer boxes only. Existing page content is HIDDEN,
+   not deleted, so removing the footer script line restores the old front end
+   exactly. Known consequence, stated plainly: the Webflow Designer no longer
+   reflects what a visitor sees on these five pages.
+
    V1.1 (2026-08-29): 3D model view restored on the Home Map, to Joe's ruling
    of 29 Aug. The previous mount lived in the site footer and was lost when
    the footer was replaced; it now lives here, so there is one pinned file and
@@ -72,8 +80,101 @@
   if (!window.supabase || !window.supabase.createClient) { console.error('[HS] supabase-js not loaded'); return; }
   const sb = window.supabase.createClient(URLBASE, ANON);
 
-  const SCREEN = (document.querySelector('[data-hs-screen]') || {}).getAttribute
-    ? document.querySelector('[data-hs-screen]').getAttribute('data-hs-screen') : null;
+  /* ---------- 0b. Self-building shell (V1.2) ----------
+     Path -> screen. Only these five paths are ever touched. Anything else on
+     the site is left completely alone. */
+  const PATH_SCREEN = {
+    '/dashboard':    'dashboard',
+    '/digital-twin': 'home-map',
+    '/diagnostics':  'records',
+    '/pathway':      'pathway',
+    '/reports':      'reports'
+  };
+
+  const LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 0 620 180" role="img" aria-label="Home State by Joe Builds">' +
+    '<g fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M72 16A62 62 0 0 1 134 78M134 87A62 62 0 0 1 74 148" stroke="#1c3026" stroke-width="2.4"/>' +
+    '<path d="M64 148A62 62 0 0 1 12 88M13 76A62 62 0 0 1 63 17" stroke="#ab5948" stroke-width="2.4"/>' +
+    '<path d="M73 4V36M73 148v28M0 82h32M135 82h28" stroke="#9d8856" stroke-width="1.6"/>' +
+    '<circle cx="73" cy="4" r="5.8" stroke="#ab5948" stroke-width="2"/><circle cx="73" cy="176" r="5.8" stroke="#ab5948" stroke-width="2"/>' +
+    '<circle cx="0" cy="82" r="5.8" stroke="#ab5948" stroke-width="2"/><circle cx="163" cy="82" r="5.8" stroke="#ab5948" stroke-width="2"/>' +
+    '<path d="M46 111V61l29-24v74M75 55l34-17v72M75 55l34 27v34" stroke="#1c3026" stroke-width="4"/>' +
+    '<path d="M75 55l34-17v72M75 55l34 27" stroke="#ab5948" stroke-width="3"/>' +
+    '<path d="M24 108c17-8 31 7 49 0 18-7 33 7 54 0M23 116c18-8 32 7 50 0 18-7 33 7 54 0M25 124c17-7 30 7 48 0 18-7 34 7 52 0M30 132c15-6 28 6 43 0 18-7 32 6 47 1" stroke="#9d8856" stroke-width="1.2"/>' +
+    '<circle cx="73" cy="82" r="4.5" fill="#ab5948" stroke="none"/></g>' +
+    '<g fill="#1c3026"><text x="205" y="96" font-family=\'Arial, "Liberation Sans", Helvetica, sans-serif\' font-size="46" font-weight="400" letter-spacing="12">HOME STATE</text>' +
+    '<text x="208" y="128" font-family=\'Arial, "Liberation Sans", Helvetica, sans-serif\' font-size="14" font-weight="600" letter-spacing="4.2" fill="#ab5948">BY JOE BUILDS</text></g></svg>';
+
+  const NAV_ITEMS = [
+    ['/dashboard', 'Dashboard', 'dashboard'],
+    ['/digital-twin', 'Home Map', 'home-map'],
+    ['/diagnostics', 'Records', 'records'],
+    ['/pathway', 'Pathway', 'pathway'],
+    ['/reports', 'Reports', 'reports']
+  ];
+
+  const MAIN_BODY = {
+    dashboard:
+      '<header id="hsHero"></header>' +
+      '<div class="hs-grid" id="hsMetricGrid"></div>' +
+      '<div class="hs-grid"><article class="hs-card" id="hsPathwayCard"></article>' +
+      '<article class="hs-card" id="hsPriorityCard"></article></div>' +
+      '<article class="hs-card" id="hsHistoryCard"></article>',
+    'home-map':
+      '<header id="hsHero"></header>' +
+      '<p class="hs-metric-desc" id="hsMapCount"></p>' +
+      '<div class="hs-view-switch" id="hsViewSwitch" role="group" aria-label="Home Map view">' +
+      '<button type="button" class="hs-view-btn hs-view-on" data-hs-view="plan" aria-pressed="true">Measured plan</button>' +
+      '<button type="button" class="hs-view-btn" data-hs-view="model" aria-pressed="false">3D model</button></div>' +
+      '<div class="hs-map-stage" id="hsPlanStage"><div id="hsMap"></div></div>' +
+      '<div class="hs-model-stage" id="hsModelStage" hidden></div>' +
+      '<aside id="hsRoomPanel" hidden></aside>',
+    records:  '<header id="hsHero"></header><div id="hsRecords"></div>',
+    pathway:  '<header id="hsHero"></header><div id="hsPathway"></div>',
+    reports:  '<header id="hsHero"></header><div id="hsReports"></div>'
+  };
+
+  function buildShell(screen) {
+    // Hide, never delete. Removing the footer script line restores the old page.
+    Array.prototype.forEach.call(document.body.children, function (el) {
+      if (el.dataset && el.dataset.hsBuilt) return;
+      if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return;
+      el.setAttribute('data-hs-hidden', '1');
+      el.style.display = 'none';
+    });
+
+    const nav = NAV_ITEMS.map(function (n) {
+      return '<a href="' + n[0] + '"' + (n[2] === screen ? ' class="hs-active"' : '') + '>' + n[1] + '</a>';
+    }).join('');
+
+    const wrap = document.createElement('div');
+    wrap.dataset.hsBuilt = '1';
+    wrap.innerHTML =
+      '<div class="hs-demo-strip" id="jbDemoStrip" hidden>Illustrative demonstration - not a client record</div>' +
+      '<div class="hs-shell">' +
+        '<nav class="hs-nav" aria-label="Home State">' +
+          '<a class="hs-logo" href="/dashboard" aria-label="Home State by Joe Builds">' + LOGO_SVG + '</a>' +
+          nav +
+          '<div class="hs-nav-admin" data-ms-content="admin">' +
+            '<a href="/properties">Properties</a><a href="/admin">Admin</a>' +
+          '</div>' +
+        '</nav>' +
+        '<main class="hs-main" id="hsMain" data-hs-screen="' + screen + '">' + MAIN_BODY[screen] + '</main>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    return screen;
+  }
+
+  let SCREEN = document.querySelector('[data-hs-screen]')
+    ? document.querySelector('[data-hs-screen]').getAttribute('data-hs-screen')
+    : null;
+
+  if (!SCREEN) {
+    const path = location.pathname.replace(/\/+$/, '') || '/';
+    const want = PATH_SCREEN[path];
+    if (!want) return;               // not a portal screen - leave the page alone
+    SCREEN = buildShell(want);
+  }
   if (!SCREEN) return;
 
   /* ---------- 1. Formatting + status mapping (D-1, D-3, QA-18/21) ---------- */
