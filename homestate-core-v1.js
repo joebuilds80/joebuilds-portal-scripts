@@ -35,6 +35,14 @@
    which Joe sets in the site-wide footer embed (copied from the previous
    script by Joe - credentials never travel through the production pack).
 
+   V1.3 (2026-08-29): LIVE SCHEMA ADAPTERS. The live tables name columns
+   differently from the build seed - rooms.room_name_current, upgrade_scenarios
+   .title, no buildings.building_name at all - and access_status casing is
+   inconsistent in the data. Every read now uses the real column with a
+   fallback, and comparisons are lowercased. Added the g/kg group: the live
+   record holds 8 absolute-humidity readings that no group matched, so they
+   were being dropped from the count.
+
    V1.2 (2026-08-29): SELF-BUILDING SHELL. If a page does not already carry
    [data-hs-screen] markup, the core now builds the whole screen itself from
    location.pathname. This removes the five Webflow Designer embeds entirely -
@@ -200,6 +208,17 @@
     'elevated readings recorded': 'Elevated readings recorded',
     'not assessed': 'Not assessed'
   };
+  /* Schema adapters (V1.3). The live tables use different column names from the
+     harness seed; these read the real ones and fall back rather than guess.
+     rooms.room_name_current is the live name column; access_status casing is
+     inconsistent in the data ("Accessed"/"Assessed", "No access"/"No Access"),
+     so every comparison is lowercased. */
+  const roomName = r => r.room_name_current || r.room_name || r.room_code || '';
+  const roomNote = r => r.notes || r.client_facing_description || r.access_note || '';
+  const accessOf = r => String(r.access_status || '').toLowerCase().trim();
+  const isNoAccess = r => accessOf(r) === 'no access';
+  const isAssessed = r => ['assessed', 'accessed'].indexOf(accessOf(r)) !== -1;
+
   const roomBadge = r => {
     const key = String(r.room_status || '').toLowerCase().trim();
     if (key === 'within recorded range') return badge('within recorded range');
@@ -243,6 +262,8 @@
       match: m => m.unit === 'comparative' },
     { key: 'CO2', title: 'Fresh air, carbon dioxide', note: 'An indicator of how much fresh air reaches a room while it is in use.',
       match: m => m.unit === 'ppm' },
+    { key: 'ABS_HUMIDITY', title: 'Moisture in the air', note: 'Grams of water per kilogram of air. Unlike relative humidity this does not move with temperature.',
+      match: m => m.unit === 'g/kg' },
     { key: 'SURFACE', title: 'Surface temperature', note: '', recordsOnly: true,
       match: m => m.unit === 'degrees C' && !String(m.measurement_points?.element_code || '').startsWith('Room air') }
   ];
@@ -351,11 +372,11 @@
       cell.style.left = `calc(${r.map_x}% - 59px)`;
       cell.style.top = `calc(${r.map_y}% - 30px)`;
       const b = roomBadge(r);
-      const access = String(r.access_status || '').toLowerCase();
-      const accessChip = (access && access !== 'assessed')
+      const access = accessOf(r);
+      const accessChip = (access && !isAssessed(r))
         ? `<span class="hs-badge hs-badge--access"><span class="hs-dot"></span>${r.access_status}</span>` : '';
-      cell.innerHTML = `<span class="hs-room-name">${r.room_name}</span>${chip(b)}${accessChip}`;
-      cell.setAttribute('aria-label', `${r.room_name}: ${b.text}${access && access !== 'assessed' ? ', ' + r.access_status : ''}`);
+      cell.innerHTML = `<span class="hs-room-name">${roomName(r)}</span>${chip(b)}${accessChip}`;
+      cell.setAttribute('aria-label', `${roomName(r)}: ${b.text}${access && access !== 'assessed' ? ', ' + r.access_status : ''}`);
       cell.addEventListener('click', () => openRoomPanel(d, r));
       plan.appendChild(cell);
     });
@@ -387,7 +408,7 @@
       let t; new ResizeObserver(() => { clearTimeout(t); t = setTimeout(deCollide, 120); }).observe(plan);
     }
     const count = $('#hsMapCount');
-    if (count) count.textContent = `${d.points.length} mapped locations across ${d.rooms.filter(r => String(r.access_status).toLowerCase() !== 'no access').length} accessible spaces`;
+    if (count) count.textContent = `${d.points.length} mapped locations across ${d.rooms.filter(r => !isNoAccess(r)).length} accessible spaces`;
     setupModelView();
   }
 
@@ -436,15 +457,15 @@
     const panel = $('#hsRoomPanel'); if (!panel) return;
     const pts = d.points.filter(p => p.room_id === room.id);
     const rows = d.meas.filter(m => pts.some(p => p.id === m.measurement_point_id));
-    const noAccess = String(room.access_status || '').toLowerCase() === 'no access';
+    const noAccess = isNoAccess(room);
     panel.hidden = false;
     panel.innerHTML = `
       <div class="hs-panel-head">
-        <h3>${room.room_name}</h3>
+        <h3>${roomName(room)}</h3>
         <button class="hs-panel-close" aria-label="Close">×</button>
       </div>
       ${chip(roomBadge(room))}
-      ${String(room.access_status || '').toLowerCase() !== 'assessed' ? `<p class="hs-metric-desc">Access: ${room.access_status}${room.access_note ? '. ' + room.access_note : ''}</p>` : ''}
+      ${!isAssessed(room) ? `<p class="hs-metric-desc">Access: ${room.access_status}${roomNote(room) ? '. ' + roomNote(room) : ''}</p>` : ''}
       ${noAccess
         ? `<p class="hs-metric-desc">Recorded as no access at the last visit. No readings were taken. Absence of readings is not evidence of absence of a problem.</p>`
         : rows.length
@@ -464,9 +485,9 @@
       const pts = d.points.filter(p => p.room_id === room.id);
       const rows = d.meas.filter(m => pts.some(p => p.id === m.measurement_point_id));
       const sec = el('section', 'hs-card hs-record-room');
-      sec.innerHTML = `<div class="hs-record-head"><h3>${room.room_name}</h3>${chip(roomBadge(room))}</div>`;
+      sec.innerHTML = `<div class="hs-record-head"><h3>${roomName(room)}</h3>${chip(roomBadge(room))}</div>`;
       if (!rows.length) {
-        sec.appendChild(el('p', 'hs-metric-desc', String(room.access_status || '').toLowerCase() === 'no access'
+        sec.appendChild(el('p', 'hs-metric-desc', isNoAccess(room)
           ? 'Recorded as no access. No readings taken.' : 'Not recorded in this baseline.'));
       } else {
         sec.insertAdjacentHTML('beforeend',
@@ -498,7 +519,7 @@
           : s.status === 'available' ? { text: 'Ready to start', cls: 'measured' }
           : { text: 'Opens later', cls: 'na' };
         list.appendChild(el('div', 'hs-step',
-          `<div><strong>${s.scenario_name || s.title || ''}</strong>${s.description ? `<p class="hs-metric-desc">${s.description}</p>` : ''}</div>${chip(st)}`));
+          `<div><strong>${s.title || s.scenario_name || ''}</strong>${s.client_facing_wording ? `<p class="hs-metric-desc">${s.client_facing_wording}</p>` : ''}</div>${chip(st)}`));
       });
       sec.appendChild(list);
       wrap.appendChild(sec);
