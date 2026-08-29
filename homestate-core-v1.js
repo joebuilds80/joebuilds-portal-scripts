@@ -34,9 +34,36 @@
    CONFIG: this file reads window.JB_SUPABASE_URL and window.JB_SUPABASE_ANON
    which Joe sets in the site-wide footer embed (copied from the previous
    script by Joe - credentials never travel through the production pack).
+
+   V1.1 (2026-08-29): 3D model view restored on the Home Map, to Joe's ruling
+   of 29 Aug. The previous mount lived in the site footer and was lost when
+   the footer was replaced; it now lives here, so there is one pinned file and
+   no loose glue. See HS_MODEL below - and read the provenance note there
+   before the model is shown to a prospect.
    ========================================================================== */
 (function () {
   'use strict';
+
+  /* --------------------------------------------------------------------------
+     3D MODEL CONFIG
+
+     PROVENANCE NOTE - READ BEFORE A WALKTHROUGH.
+     This model file is `farm-home-model-v5-2.html`. Its own on-screen text
+     describes a recorded set of 46 walls and 310+ readings. The DEMO-001
+     demonstration record holds 33 mapped locations and 66 readings across
+     9 rooms. Those are two different properties and two different counts.
+     Showing both on one demonstration puts contradictory figures in front of
+     the same prospect, so the plan generated from the DEMO-001 record is the
+     default view and the model sits behind a labelled toggle.
+     Joe rules whether a matched demonstration model is produced, or the farm
+     model stays as an illustration of the modelling capability.
+     Flip DEFAULT_VIEW to 'model' only after that ruling.
+     -------------------------------------------------------------------------- */
+  const HS_MODEL = {
+    url: 'https://joebuilds80.github.io/joebuilds-portal-scripts/farm-home-model-v5-2.html',
+    label: 'Modelling example from a different recorded property. The readings and counts shown inside the model belong to that property, not to this demonstration record.',
+    DEFAULT_VIEW: 'plan'
+  };
 
   /* ---------- 0. Config + client ---------- */
   const URLBASE = window.JB_SUPABASE_URL;
@@ -220,7 +247,7 @@
     const plan = el('div', 'hs-plan');
     d.rooms.forEach(r => {
       const cell = el('button', 'hs-room');
-      cell.style.left = `calc(${r.map_x}% - 60px)`;
+      cell.style.left = `calc(${r.map_x}% - 59px)`;
       cell.style.top = `calc(${r.map_y}% - 30px)`;
       const b = roomBadge(r);
       const access = String(r.access_status || '').toLowerCase();
@@ -234,22 +261,74 @@
     wrap.appendChild(plan);
     // presentation-only de-collision: nudge overlapping cards apart vertically.
     // Recorded map_x/map_y are unchanged; this only prevents label overlap (QA-39).
-    requestAnimationFrame(() => {
+    function deCollide() {
       const cells = [...plan.querySelectorAll('.hs-room')];
-      for (let pass = 0; pass < 4; pass++) {
+      cells.forEach(c => { c.style.top = c.dataset.hsTop; });   // reset to recorded
+      for (let pass = 0; pass < 8; pass++) {
+        let moved = false;
         for (let a = 0; a < cells.length; a++) for (let b = a + 1; b < cells.length; b++) {
           const ra = cells[a].getBoundingClientRect(), rb = cells[b].getBoundingClientRect();
           const ox = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
           const oy = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
-          if (ox > 8 && oy > 0) {
+          if (ox > 0 && oy > 0) {
             const lower = ra.top < rb.top ? cells[b] : cells[a];
-            lower.style.top = `calc(${lower.style.top} + ${oy + 6}px)`;
+            lower.style.top = `calc(${lower.style.top} + ${oy + 8}px)`;
+            moved = true;
           }
         }
+        if (!moved) break;
       }
-    });
+    }
+    [...plan.querySelectorAll('.hs-room')].forEach(c => { c.dataset.hsTop = c.style.top; });
+    requestAnimationFrame(deCollide);
+    setTimeout(deCollide, 200);
+    if (window.ResizeObserver) {
+      let t; new ResizeObserver(() => { clearTimeout(t); t = setTimeout(deCollide, 120); }).observe(plan);
+    }
     const count = $('#hsMapCount');
     if (count) count.textContent = `${d.points.length} mapped locations across ${d.rooms.filter(r => String(r.access_status).toLowerCase() !== 'no access').length} accessible spaces`;
+    setupModelView();
+  }
+
+  /* 3D model view. Lazily mounted: the iframe is only created when the model
+     view is first opened, so the Home Map costs nothing extra to load. */
+  function setupModelView() {
+    const sw = $('#hsViewSwitch'), stage = $('#hsModelStage'), planStage = $('#hsPlanStage');
+    if (!sw || !stage || !planStage) return;            // page not on V1.1 markup
+    let mounted = false;
+
+    function mount() {
+      if (mounted) return; mounted = true;
+      const note = el('p', 'hs-model-note');
+      note.textContent = HS_MODEL.label;
+      const frame = document.createElement('iframe');
+      frame.className = 'hs-model-frame';
+      frame.src = HS_MODEL.url;
+      frame.title = 'Three dimensional home model';
+      frame.setAttribute('loading', 'lazy');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      // No allow-same-origin: the model cannot reach this page's session.
+      frame.setAttribute('sandbox', 'allow-scripts');
+      stage.appendChild(note);
+      stage.appendChild(frame);
+    }
+
+    function show(view) {
+      const model = view === 'model';
+      if (model) mount();
+      stage.hidden = !model;
+      planStage.hidden = model;
+      sw.querySelectorAll('[data-hs-view]').forEach(b => {
+        const on = b.getAttribute('data-hs-view') === view;
+        b.classList.toggle('hs-view-on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+
+    sw.querySelectorAll('[data-hs-view]').forEach(b => {
+      b.addEventListener('click', () => show(b.getAttribute('data-hs-view')));
+    });
+    show(HS_MODEL.DEFAULT_VIEW === 'model' ? 'model' : 'plan');
   }
 
   function openRoomPanel(d, room) {
