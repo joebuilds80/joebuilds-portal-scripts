@@ -35,6 +35,12 @@
    which Joe sets in the site-wide footer embed (copied from the previous
    script by Joe - credentials never travel through the production pack).
 
+   V1.4 (2026-08-29): reports screen now renders only rows flagged
+   `client_visible`. Row Level Security already withholds them from a client,
+   but a staff member demonstrating the portal is granted every row, so an
+   operator-notes record was visible during a walkthrough. Defence in depth -
+   the interface applies the same rule the policy does.
+
    V1.3 (2026-08-29): LIVE SCHEMA ADAPTERS. The live tables name columns
    differently from the build seed - rooms.room_name_current, upgrade_scenarios
    .title, no buildings.building_name at all - and access_status casing is
@@ -531,7 +537,19 @@
     renderHero(d);
     const wrap = $('#hsReports'); if (!wrap) return;
     wrap.innerHTML = `<h2 class="hs-h2">Recorded so far</h2>`;
-    d.reports.forEach(r => {
+    /* V1.4 defence in depth: only render reports explicitly marked
+       client_visible. RLS already withholds these from a client, but a staff
+       member walking a prospect through the demonstration is granted
+       everything by `reports_staff_all` - which is how "Operator working
+       notes - not client visible" appeared on the client Reports screen.
+       The interface now applies the same rule the policy does. */
+    const visible = d.reports.filter(r => r.client_visible === true);
+    const withheld = d.reports.length - visible.length;
+    if (withheld > 0) console.info('[HS] ' + withheld + ' report(s) not client_visible, withheld from this screen');
+    if (!visible.length) {
+      wrap.insertAdjacentHTML('beforeend', '<p class="hs-metric-desc">No report has been released to this record yet.</p>');
+    }
+    visible.forEach(r => {
       wrap.appendChild(el('article', 'hs-card hs-report',
         `<div class="hs-record-head"><h3>${r.report_title || r.report_type || 'Report'}</h3>${chip(badge('measured'))}</div>
          <p class="hs-metric-desc">Issued ${fmt(r.report_date || r.created_at)}.</p>`));
