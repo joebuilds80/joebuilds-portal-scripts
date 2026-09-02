@@ -193,18 +193,32 @@ const JoeBuildsDashboard = (() => {
         card.setAttribute('data-rec', activeIssue.recommended_action || "Next step is recorded in your Upgrade Pathway.");
 
     } else {
+        // No finding row exists for this parameter.
+        //
+        // Absence of a finding is NOT a measured verdict. It may mean the parameter was
+        // assessed and was within range, or that it was not assessed, or that data has not
+        // yet been processed. This code cannot distinguish those cases, so it states only
+        // what is true: that nothing was recorded.
+        //
+        // Ruled by Joe, 2026-09-02:
+        //   Decision Log/RULING - Absence of a finding is not a Stable verdict (2026-09-02).md
+        // Do not reintroduce a status band, a badge colour or a recommendation here.
+
+        const NO_FINDING_SHORT = 'No finding recorded';
+        const NO_FINDING_LONG  = 'No finding was recorded for this parameter at the last assessment. This is not a statement that the parameter is stable.';
+
         const valueEl = card.querySelector('.jb-metric-string'); 
         const descEl = card.querySelector('.jb-metric-description');
-        if (valueEl) valueEl.textContent = 'No Further Action Indicated'; 
-        if (descEl) descEl.textContent = 'All recorded parameters are within the observed baseline range.';
+        if (valueEl) valueEl.textContent = NO_FINDING_SHORT; 
+        if (descEl) descEl.textContent = 'No finding was recorded for this parameter at the last assessment.';
         const badgeEl = card.querySelector('.jb-status-badge'); 
-        if (badgeEl) { badgeEl.className = `jb-status-badge jb-status-stable`; badgeEl.innerHTML = `<span class="jb-badge-dot bg-stable"></span>Stable`; }
+        if (badgeEl) { badgeEl.className = `jb-status-badge jb-status-none`; badgeEl.innerHTML = `<span class="jb-badge-dot bg-none"></span>${NO_FINDING_SHORT}`; }
         
-        card.setAttribute('data-status', 'stable');
-        card.setAttribute('data-badge', 'Stable');
-        card.setAttribute('data-current', 'Stable');
-        card.setAttribute('data-commentary', 'All recorded diagnostic parameters are indicated Stable at the last assessment.');
-        card.setAttribute('data-rec', 'No further action indicated at the last assessment.');
+        card.setAttribute('data-status', 'none');
+        card.setAttribute('data-badge', NO_FINDING_SHORT);
+        card.setAttribute('data-current', NO_FINDING_SHORT);
+        card.setAttribute('data-commentary', NO_FINDING_LONG);
+        card.setAttribute('data-rec', 'No recommendation has been recorded.');
     }
   };
 
@@ -224,8 +238,11 @@ const JoeBuildsDashboard = (() => {
     }
     if (descEl) descEl.textContent = histDate;
     
-    card.setAttribute('data-status', 'stable');
-    card.setAttribute('data-badge', 'Stable');
+    // A count of recorded sessions is not a measured parameter and carries no status band.
+    // Ruled by Joe, 2026-09-02:
+    //   Decision Log/RULING - Absence of a finding is not a Stable verdict (2026-09-02).md
+    card.setAttribute('data-status', 'none');
+    card.setAttribute('data-badge', `${count} recorded`);
     card.setAttribute('data-current', `${count} Total Assessments`);
     card.setAttribute('data-commentary', 'A dated log of each recorded assessment session for this property.');
     card.setAttribute('data-rec', histDate);
@@ -250,14 +267,21 @@ const JoeBuildsDashboard = (() => {
     
     const badgeEl = card.querySelector('.jb-status-badge');
     const dotEl = card.querySelector('.jb-badge-dot');
+    // This card reports progress through the upgrade sequence. It is not a measured
+    // parameter, so it carries no status band. Stable, Improving, Monitor, At Risk and
+    // Further Investigation Required are outputs of an assessment and may not be used as
+    // decoration here.
+    // Ruled by Joe, 2026-09-02:
+    //   Decision Log/RULING - Absence of a finding is not a Stable verdict (2026-09-02).md
+    const progressText = `${completed} of ${total} complete`;
     if (badgeEl && dotEl) {
-        badgeEl.className = `jb-status-badge jb-status-stable`; // Mapped measured to stable visually for pathways
-        dotEl.className = `jb-badge-dot bg-stable`;
-        badgeEl.innerHTML = `<span class="${dotEl.className}"></span>Stable`;
+        badgeEl.className = `jb-status-badge jb-status-none`;
+        dotEl.className = `jb-badge-dot bg-none`;
+        badgeEl.innerHTML = `<span class="${dotEl.className}"></span>${progressText}`;
     }
 
-    card.setAttribute('data-status', 'stable');
-    card.setAttribute('data-badge', 'Stable');
+    card.setAttribute('data-status', 'none');
+    card.setAttribute('data-badge', progressText);
     card.setAttribute('data-current', `${completed} of ${total} Phases Unlocked`);
     card.setAttribute('data-commentary', 'Progress through the recommended upgrade sequence, updated at each assessment.');
     card.setAttribute('data-rec', descText);
