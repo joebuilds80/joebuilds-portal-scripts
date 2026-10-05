@@ -44,7 +44,7 @@ No name, email address, phone number or chat text is sent to GA4 or `site_events
 <script src="https://cdn.jsdelivr.net/gh/joebuilds80/joebuilds-portal-scripts@main/ops/emma-funnel-tracking-v1.js" defer></script>
 ```
 
-5. Run a clean incognito test:
+5. Run a clean incognito test using `?jb_test=1` so QA events are stored but excluded from business funnel counts:
    - page load with widget visible → one `emma_widget_impression`
    - open Emma → one `emma_open`
    - begin a chat → one `emma_conversation_start`
