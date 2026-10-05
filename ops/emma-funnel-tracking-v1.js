@@ -50,7 +50,7 @@
     return held;
   }
 
-  var attr = captureAttribution();
+  var attr = captureAttribution();\n  var isTest = new URLSearchParams(location.search).get("jb_test") === "1";
 
   function ga(name, extra) {
     var p = Object.assign({
@@ -89,7 +89,7 @@
       utm_campaign: attr.utm_campaign || "",
       utm_content: attr.utm_content || "",
       utm_term: attr.utm_term || "",
-      click_id_present: !!(attr.gclid || attr.gbraid || attr.wbraid || attr.fbclid || attr.msclkid)
+      click_id_present: !!(attr.gclid || attr.gbraid || attr.wbraid || attr.fbclid || attr.msclkid),\n      is_test: isTest
     }, extra || {});
 
     ga(name, {
