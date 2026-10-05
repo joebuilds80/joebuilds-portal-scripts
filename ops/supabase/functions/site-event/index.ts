@@ -17,7 +17,9 @@ const allowedEvents = new Set([
 ]);
 
 const cors = (origin: string | null) => ({
-  "access-control-allow-origin": origin && allowedOrigins.has(origin) ? origin : "https://www.joebuilds.com.au",
+  "access-control-allow-origin": origin && allowedOrigins.has(origin)
+    ? origin
+    : "https://www.joebuilds.com.au",
   "access-control-allow-methods": "POST, OPTIONS",
   "access-control-allow-headers": "content-type",
   "vary": "Origin"
@@ -52,13 +54,15 @@ Deno.serve(async (req) => {
   if (!allowedEvents.has(eventName)) {
     return new Response("event not allowed", { status: 400, headers: cors(origin) });
   }
-  if (!/^[A-Za-z0-9_-]{8,100}$/.test(visitorId) || !/^[A-Za-z0-9_-]{8,100}$/.test(sessionId)) {
+
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(visitorId) ||
+      !/^[A-Za-z0-9_-]{8,100}$/.test(sessionId)) {
     return new Response("invalid identifiers", { status: 400, headers: cors(origin) });
   }
 
-  const occurredAt = typeof body.occurred_at === "string" ? body.occurred_at : new Date().toISOString();
-  const pagePath = String(body.page_path || "").slice(0, 500);
-  const dedupe = [eventName, sessionId].join(":");
+  const occurredAt = typeof body.occurred_at === "string"
+    ? body.occurred_at
+    : new Date().toISOString();
 
   const row = {
     occurred_at: occurredAt,
@@ -66,7 +70,7 @@ Deno.serve(async (req) => {
     event_name: eventName,
     visitor_id: visitorId,
     session_id: sessionId,
-    page_path: pagePath,
+    page_path: String(body.page_path || "").slice(0, 500),
     landing_page: String(body.landing_page || "").slice(0, 500),
     referrer: String(body.referrer || "").slice(0, 1000),
     utm_source: String(body.utm_source || "").slice(0, 200),
@@ -78,7 +82,8 @@ Deno.serve(async (req) => {
     mode: String(body.mode || "").slice(0, 50),
     stage: String(body.stage || "").slice(0, 50),
     origin: "website",
-    event_dedupe_key: dedupe,
+    event_dedupe_key: [eventName, sessionId].join(":"),
+    is_test: body.is_test === true,
     metadata: {}
   };
 
