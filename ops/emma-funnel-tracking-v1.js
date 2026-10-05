@@ -10,7 +10,7 @@
   var VISITOR_KEY = "jb_visitor_id_v1";
   var SESSION_KEY = "jb_session_id_v1";
   var ATTR_KEY = "jb_attr_v1";
-  var fired = {};
+  var FIRED_KEY = "jb_emma_fired_v1";
 
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -31,6 +31,19 @@
 
   var visitorId = getStored(localStorage, VISITOR_KEY, uuid);
   var sessionId = getStored(sessionStorage, SESSION_KEY, uuid);
+  var isTest = new URLSearchParams(location.search).get("jb_test") === "1";
+
+  var fired = {};
+  try { fired = JSON.parse(sessionStorage.getItem(FIRED_KEY) || "{}"); } catch (_) { fired = {}; }
+
+  function alreadyFired(name) {
+    return fired[name] === true;
+  }
+
+  function markFired(name) {
+    fired[name] = true;
+    try { sessionStorage.setItem(FIRED_KEY, JSON.stringify(fired)); } catch (_) {}
+  }
 
   function captureAttribution() {
     var held = {};
@@ -50,7 +63,7 @@
     return held;
   }
 
-  var attr = captureAttribution();\n  var isTest = new URLSearchParams(location.search).get("jb_test") === "1";
+  var attr = captureAttribution();
 
   function ga(name, extra) {
     var p = Object.assign({
@@ -59,21 +72,23 @@
       landing_page: attr.landing_page || location.pathname,
       traffic_source: attr.utm_source || "",
       traffic_medium: attr.utm_medium || "",
-      traffic_campaign: attr.utm_campaign || ""
+      traffic_campaign: attr.utm_campaign || "",
+      internal_test: isTest ? "true" : "false"
     }, extra || {});
+
     try {
       if (typeof window.gtag === "function") window.gtag("event", name, p);
     } catch (_) {}
+
     try {
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push(Object.assign({ event: name }, p));
     } catch (_) {}
   }
 
-  function record(name, extra, oncePerSession) {
-    var key = oncePerSession === false ? name + ":" + Date.now() : name;
-    if (oncePerSession !== false && fired[key]) return;
-    fired[key] = true;
+  function record(name, extra) {
+    if (alreadyFired(name)) return;
+    markFired(name);
 
     var payload = Object.assign({
       schema_version: SCHEMA,
@@ -89,7 +104,8 @@
       utm_campaign: attr.utm_campaign || "",
       utm_content: attr.utm_content || "",
       utm_term: attr.utm_term || "",
-      click_id_present: !!(attr.gclid || attr.gbraid || attr.wbraid || attr.fbclid || attr.msclkid),\n      is_test: isTest
+      click_id_present: !!(attr.gclid || attr.gbraid || attr.wbraid || attr.fbclid || attr.msclkid),
+      is_test: isTest
     }, extra || {});
 
     ga(name, {
@@ -112,15 +128,15 @@
     if (!widget || widget.dataset.jbFunnelBound === "1") return;
     widget.dataset.jbFunnelBound = "1";
 
-    // Widget exposure: counted only when at least 25% visible.
+    // Widget exposure: count once per browser session when at least 25% is visible for 500ms.
     try {
       var seenTimer = null;
       var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) {
-          if (e.isIntersecting && e.intersectionRatio >= 0.25 && !fired.emma_widget_impression) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.25 && !alreadyFired("emma_widget_impression")) {
             clearTimeout(seenTimer);
             seenTimer = setTimeout(function () {
-              record("emma_widget_impression", { stage: "seen" }, true);
+              record("emma_widget_impression", { stage: "seen" });
               io.disconnect();
             }, 500);
           } else {
@@ -133,7 +149,7 @@
 
     // First interaction with the widget = open/engage intent.
     widget.addEventListener("pointerdown", function () {
-      record("emma_open", { stage: "opened" }, true);
+      record("emma_open", { stage: "opened", trigger: "widget" });
     }, true);
 
     // Official ElevenLabs widget lifecycle event. This fires when a conversation session is initiated.
@@ -141,10 +157,10 @@
       record("emma_conversation_start", {
         stage: "conversation_started",
         mode: "widget"
-      }, true);
+      });
 
-      // Give ElevenLabs a stable anonymous browser ID so completed conversations can be
-      // joined back to the same anonymous visitor in Supabase. No personal data is used.
+      // Stable anonymous browser ID. This is not proof of identity.
+      // ElevenLabs returns user_id in the completed conversation model, giving Supabase a join key.
       try {
         if (event.detail && event.detail.config) {
           if (!event.detail.config.userId) event.detail.config.userId = visitorId;
@@ -170,13 +186,13 @@
     document.querySelectorAll("elevenlabs-convai").forEach(configureWidget);
   }
 
-  // Track explicit links/buttons that invite a user to speak to Emma.
+  // Track explicit page links/buttons that invite a visitor to speak to Emma.
   document.addEventListener("click", function (event) {
     var el = event.target && event.target.closest ? event.target.closest("a,button") : null;
     if (!el) return;
     var label = ((el.textContent || "") + " " + (el.getAttribute("aria-label") || "")).toLowerCase();
     if (label.indexOf("emma") !== -1 || el.hasAttribute("data-jb-emma-open")) {
-      record("emma_open", { stage: "opened", trigger: "page_cta" }, true);
+      record("emma_open", { stage: "opened", trigger: "page_cta" });
     }
   }, true);
 
