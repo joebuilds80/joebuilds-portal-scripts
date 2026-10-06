@@ -220,11 +220,16 @@
     if (GEO) GEO.levels.forEach(l => { LEVEL_NAME[l.id] = l.name; });
 
     /* Rooms. Level comes from level_id (else floor_level words). */
+    /* Records number levels differently (DEMO-001 uses L0 for ground, L1 for roof space), so the
+       written floor_level wins when it is one of the known words; level_id is the fallback. */
     const levelOf = r => {
+      const f = String(r.floor_level || '').toLowerCase().trim();
+      if (/roof/.test(f)) return 'RS'; if (/sub ?floor|under ?floor/.test(f)) return 'SF';
+      if (/^ground|^lower|^level 1$/.test(f)) return 'L1'; if (/^upper|^first|^level 2$/.test(f)) return 'L2';
+      const t = String(r.room_type || '').toLowerCase();
+      if (/roof/.test(t)) return 'RS'; if (/sub ?floor/.test(t)) return 'SF';
       const l = String(r.level_id || '').trim().toUpperCase();
-      if (l) return l;
-      const f = String(r.floor_level || r.room_type || '').toLowerCase();
-      return /roof/.test(f) ? 'RS' : /sub/.test(f) ? 'SF' : /upper|first|level 2/.test(f) ? 'L2' : 'L1';
+      return l || 'L1';
     };
     const rooms = (d.rooms || []).map(r => {
       const level = levelOf(r);
@@ -232,7 +237,7 @@
       const kind = level === 'RS' || /roof/i.test(r.room_type || '') ? 'roof' : level === 'SF' || /subfloor|under ?floor/i.test(r.room_type || '') ? 'subfloor' : 'room';
       const wet = kind === 'room' && (/wet/i.test(r.room_type || '') || /bath|ensuite|en-suite|laundry|powder|toilet|\bwc\b/i.test(name));
       const access = String(r.access_status || '').trim();
-      const limited = !!access && !/^(assessed|accessed)$/i.test(access);
+      const limited = /limited|no access|not accessed|restricted|obstructed|unsafe|unable/i.test(access);
       const geoId = GEO ? geoPrefix + '-' + level + '-' + (kind === 'room' ? r.room_code : 'ZONE') : null;
       const geo = GEO ? GEO.rooms.concat(GEO.zones).find(g => g.id === geoId) || null : null;
       return { id: r.id, code: r.room_code, name, level, kind, wet, access, limited, desc: r.client_facing_description || '', geoId: geo ? geoId : null, parts: geo ? geo.parts : null, raw: r };
