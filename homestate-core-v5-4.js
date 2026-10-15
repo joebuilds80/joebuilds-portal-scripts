@@ -939,7 +939,7 @@
     const rooms = R.rooms.filter(r => r.level === S.level);
     $('#hs51-map-rooms').innerHTML = rooms.map(r => { const n = uniq(roomRows(r.id, S.event).filter(hasValue).map(x => x.target_id)).length; return `<button type="button" class="room-row" data-action="map-room" data-id="${esc(r.id)}" aria-pressed="${S.room === r.id}"><span><b>${esc(r.name)}</b><small>${n ? plural(n, 'recorded location') : 'No readings at this visit'}</small></span></button>`; }).join('') || '<p class="small">No rooms are recorded on this level.</p>';
     renderPlan(); renderSelectedRoom();
-    $('#hs51-map-caption').textContent = S.mapView === 'plan' ? (R.GEO ? 'Floor plan uses the matched model geometry. Select a room, or use the room list. Shaded rooms have readings at the selected visit; shading is not a condition rating.' : 'Use the room list to open a room.') : (R.standalone ? 'This model has its own controls: House, Measured and Intelligence, 3D and 2D. Drag to rotate, scroll or pinch to zoom. The room list beside it holds the recorded readings. Colours are not a condition rating.' : 'Drag to rotate \u00b7 scroll or pinch to zoom \u00b7 tap a room \u00b7 use the room list for precise selection. Colours are not a condition rating.');
+    $('#hs51-map-caption').textContent = S.mapView === 'plan' ? (R.GEO ? 'Floor plan uses the matched model geometry. Select a room, or use the room list. Shaded rooms have readings at the selected visit; shading is not a condition rating.' : 'Use the room list to open a room.') : (R.standalone ? 'This model has its own controls: House, Measured and Intelligence, 3D and 2D. Drag to rotate, scroll or pinch to zoom. The room list beside it holds the recorded readings. Colours are not a condition rating.' : 'Drag to rotate \u00b7 scroll or pinch to zoom \u00b7 tap a room \u00b7 use the room list for precise selection. Colours are not a condition rating.' + (R.twin && R.twin.isPrivate && !R.isDemo ? ' The 3D model shows the shape of the home; finishes, the roof and the landscape are indicative. The room list holds your recorded values.' : ''));
     if (S.mapView === '3d') { initModel(); if (MODEL.ready) applyModel(); }
   }
   function renderPlan() {
@@ -1022,7 +1022,8 @@
     /* A standalone model page (no HS-MODEL-API-V1) is ready when it has loaded; nothing is posted into it. */
     if (R.standalone) f.addEventListener('load', () => { MODEL.loaded = true; clearTimeout(MODEL.timer); const l = $('#hs51-model-loading'); if (l) l.hidden = true; });
     modelSrc().then(u => { f.src = u; }).catch(() => { MODEL.errors.push('private model not delivered'); const l = $('#hs51-model-loading'); if (l) { l.hidden = false; l.innerHTML = '<div class="model-note">The 3D model could not be opened just now. The floor plan and room list hold the same record. ' + button('Use the floor plan', 'map-view', 'plan', 'link') + '</div>'; } });
-    if (!R.isDemo) { const n = document.createElement('div'); n.className = 'model-note'; n.textContent = 'The 3D model shows the shape of the home. Readings shown inside the model come from the model file, not from this record; use the room list and readings for your recorded values.'; $('#hs51-model-view').appendChild(n); }
+    /* V5.4: a private model carries its own panel and legend, so the note sits in the caption, not over the model. */
+    if (!R.isDemo && !R.twin.isPrivate) { const n = document.createElement('div'); n.className = 'model-note'; n.textContent = 'The 3D model shows the shape of the home. Readings shown inside the model come from the model file, not from this record; use the room list and readings for your recorded values.'; $('#hs51-model-view').appendChild(n); }
     MODEL.timer = setTimeout(() => { if (!MODEL.ready && !MODEL.loaded) { const l = $('#hs51-model-loading'); if (l) l.innerHTML = '<div class="model-note">The 3D model has not opened on this device. The floor plan and room list hold the same record. ' + button('Use the floor plan', 'map-view', 'plan', 'link') + '</div>'; } }, 9000);
   }
   let modelQueue = Promise.resolve();
@@ -1030,6 +1031,9 @@
   async function applyModelNow() {
     if (!MODEL.ready) return;
     MODEL.suppressUntil = Date.now() + 1600;
+    /* V5.4: a private (Ops HS-MODEL-API-V1) model sizes its canvas only on its own resize; if the frame was hidden
+       when that ran, the canvas stays 0 wide. "embed" re-runs its resize, so do it first, while the frame is visible. */
+    if (R.twin && R.twin.isPrivate) await modelCall('embed', [true]);
     await modelCall('isolate', [null]); await modelCall('select', [null]); await modelCall('clearComparison'); await modelCall('view3d');
     /* Joe, 6 Oct: the map opens on the whole house. Floors are cut away only once a level or room is chosen. */
     const whole = !S.levelChosen && !S.room;
