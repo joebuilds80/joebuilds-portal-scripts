@@ -113,3 +113,14 @@
 .hsrf #hs51 .link{color:#1F4A35!important;font-weight:700!important}
 .hsrf #hs51-dialog,.hsrf #hs51 dialog{border-radius:22px!important}
 @media (max-width:720px){.hsrf #hs51 .page-head{padding:22px 18px!important;border-radius:20px!important}.hsrf #hs51 .panel{padding:18px!important}}
+
+/* hs-rainforest-map V1.6.2 (16 Oct 2026, Joe 9.17am): Home Map close to full screen. */
+.hsrf #hs51 .page:has(#map-page:not([hidden])){max-width:none!important;padding:12px 18px 20px!important}
+.hsrf #hs51 #map-page .page-head{display:none!important}
+.hsrf #hs51 #map-page .map-options{margin:0 0 10px!important}
+@media (min-width:871px){
+.hsrf #hs51 #map-page .map-layout{grid-template-columns:minmax(0,1fr) 250px!important;gap:14px!important}
+.hsrf #hs51 #map-page .map-stage{height:calc(100vh - 285px)!important;min-height:480px!important}
+.hsrf #hs51 #map-page .map-sidebar{max-height:calc(100vh - 160px)!important}
+}
+@media (max-width:870px){.hsrf #hs51 #map-page .map-stage{height:68vh!important;min-height:380px!important}}
