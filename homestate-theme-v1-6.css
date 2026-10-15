@@ -124,3 +124,21 @@
 .hsrf #hs51 #map-page .map-sidebar{max-height:calc(100vh - 160px)!important}
 }
 @media (max-width:870px){.hsrf #hs51 #map-page .map-stage{height:68vh!important;min-height:380px!important}}
+
+/* hs-rainforest-map-tools V1.7 (16 Oct 2026, Joe 10.08am): toggle strip, full screen, plan legend. */
+.hsrf #hs51 .map-toolbar{align-items:center!important;gap:10px!important;padding:10px 14px!important}
+.hsrf #hs51 #hs51-metric-buttons{background:#F1EDE6;border-radius:999px;padding:4px!important}
+.hsrf #hs51 #hs51-metric-buttons button{min-height:36px!important;padding:6px 14px!important}
+.hsrf #hs51 .map-full-btn{margin-left:6px!important;border:1.5px solid #13241B!important;background:#FFFFFF!important;color:#13241B!important}
+.hsrf #hs51 .map-full-btn[aria-pressed=true]{background:#13241B!important;color:#F4F1EA!important}
+.hsrf #hs51 .plan-legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;padding:8px 16px;font-size:13px;color:#13241B;background:#F1EDE6;flex:0 0 auto}
+.hsrf #hs51 .plan-legend span{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.hsrf #hs51 .plan-legend i{width:14px;height:14px;border-radius:4px;border:2px solid;display:inline-block}
+.hsrf #hs51 .plan-legend .plan-legend-note{font-weight:400;color:#3E4A42;flex-basis:100%}
+.hsrf #hs51 #hs51-plan-view{display:flex;flex-direction:column}
+.hsrf #hs51 #hs51-plan-view .plan{flex:1 1 auto;min-height:0;height:auto!important}
+.hsrf #hs51 .plan .plan-count{fill:#3E4A42}
+.hsrf #hs51 .plan .room-group[aria-pressed=true] .room-shape{stroke-width:220!important}
+.hsrf #hs51 .map-layout:fullscreen{background:#F1EDE6;padding:12px;grid-template-columns:minmax(0,1fr) 260px!important;gap:12px!important}
+.hsrf #hs51 .map-layout:fullscreen .map-stage{height:calc(100vh - 140px)!important}
+.hsrf #hs51 .map-layout:fullscreen .map-sidebar{max-height:calc(100vh - 24px)!important}
